@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.eventregistration;
+package ca.mcgill.ecse321.eventregistration.persistence;
 
 
 import java.sql.Date;
@@ -19,7 +19,7 @@ import ca.mcgill.ecse321.eventregistration.service.EventRegistrationService;
 @SuppressWarnings("deprecation")
 @RunWith(SpringRunner.class)
 @SpringBootTest
-public class EventRegistrationApplicationTests {
+public class PersistenceTests {
 
 	@Autowired
 	private EventRegistrationRepository dao;

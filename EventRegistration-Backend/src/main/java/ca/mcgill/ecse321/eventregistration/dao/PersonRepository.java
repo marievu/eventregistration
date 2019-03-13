@@ -6,6 +6,6 @@ import ca.mcgill.ecse321.eventregistration.model.Person;
 
 public interface PersonRepository extends CrudRepository<Person, String>{
 	
-	Person findPersonByName(String name);
+	Person findByName(String name);
 	
 }

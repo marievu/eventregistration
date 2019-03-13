@@ -1,51 +1,84 @@
 package ca.mcgill.ecse321.eventregistration.service;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
-
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
 import java.sql.Date;
 import java.sql.Time;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
-import java.util.List;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.stubbing.Answer;
 
 import ca.mcgill.ecse321.eventregistration.dao.EventRepository;
 import ca.mcgill.ecse321.eventregistration.dao.PersonRepository;
 import ca.mcgill.ecse321.eventregistration.dao.RegistrationRepository;
 import ca.mcgill.ecse321.eventregistration.model.Event;
 import ca.mcgill.ecse321.eventregistration.model.Person;
+import ca.mcgill.ecse321.eventregistration.model.Registration;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest
-public class TestEventRegistrationService {
+@RunWith(MockitoJUnitRunner.class)
+public class ServiceTests {
 
-	@Autowired
+	@Mock
+	private PersonRepository personDao;
+
+	@Mock
+	private RegistrationRepository registrationDao;
+
+	@Mock
+	private EventRepository eventDao;
+
+	@InjectMocks
 	private EventRegistrationService service;
-	
-	@Autowired
-	private PersonRepository personRepository;
-	@Autowired
-	private EventRepository eventRepository;
-	@Autowired
-	private RegistrationRepository registrationRepository;
+
+	private static final String PERSON_KEY = "TestPerson";
+	private static final String NONEXISTING_KEY = "NotAPerson";
+	private Person person;
+	private Event event;
+	private Registration registration;
+
+	@Before
+	public void setMockOutput() {
+		when(personDao.findByName(anyString())).thenAnswer((InvocationOnMock invocation) -> {
+			if (invocation.getArgument(0).equals(PERSON_KEY)) {
+				Person person = new Person();
+				person.setName(PERSON_KEY);
+				return person;
+			} else {
+				return null;
+			}
+		});
+		// Whenever anything is saved, just return the parameter object
+		Answer<?> returnParameterAsAnswer = (InvocationOnMock invocation) -> {
+			return invocation.getArgument(0);
+		};
+		when(personDao.save(any(Person.class))).thenAnswer(returnParameterAsAnswer);
+		when(eventDao.save(any(Event.class))).thenAnswer(returnParameterAsAnswer);
+		when(registrationDao.save(any(Registration.class))).thenAnswer(returnParameterAsAnswer);
+	}
 
 	@After
 	public void clearDatabase() {
 		// Fisrt, we clear registrations to avoid exceptions due to inconsistencies
-		registrationRepository.deleteAll();
+		registrationDao.deleteAll();
 		// Then we can clear the other tables
-		personRepository.deleteAll();
-		eventRepository.deleteAll();
+		eventDao.deleteAll();
+		personDao.deleteAll();
 	}
-	
+
 	@Test
 	public void testCreatePerson() {
 		assertEquals(0, service.getAllPersons().size());
@@ -53,85 +86,63 @@ public class TestEventRegistrationService {
 		String name = "Oscar";
 
 		try {
-			service.createPerson(name);
+			person = service.createPerson(name);
 		} catch (IllegalArgumentException e) {
 			// Check that no error occurred
 			fail();
 		}
 
-		List<Person> allPersons = service.getAllPersons();
-
-		assertEquals(1, allPersons.size());
-		assertEquals(name, allPersons.get(0).getName());
+		assertEquals(name, person.getName());
 	}
 
 	@Test
 	public void testCreatePersonNull() {
-		assertEquals(0, service.getAllPersons().size());
-		
 		String name = null;
 		String error = null;
 
 		try {
-			service.createPerson(name);
+			person = service.createPerson(name);
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
 
 		// check error
 		assertEquals("Person name cannot be empty!", error);
-
-		// check no change in memory
-		assertEquals(0, service.getAllPersons().size());
-
 	}
 
 	@Test
 	public void testCreatePersonEmpty() {
-		assertEquals(0, service.getAllPersons().size());
-
 		String name = "";
 		String error = null;
 
 		try {
-			service.createPerson(name);
+			person = service.createPerson(name);
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
 
 		// check error
 		assertEquals("Person name cannot be empty!", error);
-
-		// check no change in memory
-		assertEquals(0, service.getAllPersons().size());
-
 	}
 
 	@Test
 	public void testCreatePersonSpaces() {
-		assertEquals(0, service.getAllPersons().size());
 
 		String name = " ";
 		String error = null;
-	
+
 		try {
-			service.createPerson(name);
+			person = service.createPerson(name);
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
 
 		// check error
 		assertEquals("Person name cannot be empty!", error);
-
-		// check no change in memory
-		assertEquals(0, service.getAllPersons().size());
-
 	}
 
 	@Test
 	public void testCreateEvent() {
-		assertEquals(0, service.getAllEvents().size());
-		
 		String name = "Soccer Game";
 		Calendar c = Calendar.getInstance();
 		c.set(2017, Calendar.MARCH, 16, 9, 0, 0);
@@ -141,7 +152,7 @@ public class TestEventRegistrationService {
 		LocalTime endTime = LocalTime.parse("10:30");
 
 		try {
-			service.createEvent(name, eventDate, Time.valueOf(startTime) , Time.valueOf(endTime));
+			event = service.createEvent(name, eventDate, Time.valueOf(startTime), Time.valueOf(endTime));
 		} catch (IllegalArgumentException e) {
 			fail();
 		}
@@ -150,39 +161,29 @@ public class TestEventRegistrationService {
 	}
 
 	private void checkResultEvent(String name, Date eventDate, LocalTime startTime, LocalTime endTime) {
-		assertEquals(0, service.getAllPersons().size());
-		assertEquals(1, service.getAllEvents().size());
-		assertEquals(name, service.getAllEvents().get(0).getName());
-		assertEquals(eventDate.toString(), service.getAllEvents().get(0).getDate().toString());
+		assertEquals(name, event.getName());
+		assertEquals(eventDate.toString(), event.getDate().toString());
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-		assertEquals(startTime.format(formatter).toString(), service.getAllEvents().get(0).getStartTime().toString());
-		assertEquals(endTime.format(formatter).toString(), service.getAllEvents().get(0).getEndTime().toString());
-		assertEquals(0, service.getAllRegistrations().size());
+		assertEquals(startTime.format(formatter).toString(), event.getStartTime().toString());
+		assertEquals(endTime.format(formatter).toString(), event.getEndTime().toString());
 	}
 
-	
 	@Test
 	public void testRegister() {
-		assertEquals(0, service.getAllRegistrations().size());
-
-		String nameP = "Oscar";
-		
-		Person person = service.createPerson(nameP);
-		
-		assertEquals(1, service.getAllPersons().size());
-
-		String nameE = "Soccer Game";
+		String nameP = "Oscar2";
+		String nameE = "Soccer Game2";
 		Calendar c = Calendar.getInstance();
 		c.set(2017, Calendar.MARCH, 16, 9, 0, 0);
 		Date eventDate = new Date(c.getTimeInMillis());
 		Time startTime = new Time(c.getTimeInMillis());
 		c.set(2017, Calendar.MARCH, 16, 10, 30, 0);
 		Time endTime = new Time(c.getTimeInMillis());
-		Event event = service.createEvent(nameE, eventDate, startTime, endTime);
-		assertEquals(1, service.getAllEvents().size());
-
+		person = service.createPerson(nameP);
+		event = service.createEvent(nameE, eventDate, startTime, endTime);
+		when(personDao.existsById(anyString())).thenReturn(true);
+		when(eventDao.existsById(anyString())).thenReturn(true);
 		try {
-			service.register(person, event);
+			registration = service.register(person, event);
 		} catch (IllegalArgumentException e) {
 			fail();
 		}
@@ -191,25 +192,16 @@ public class TestEventRegistrationService {
 	}
 
 	private void checkResultRegister(String nameP, String nameE, Date eventDate, Time startTime, Time endTime) {
-		assertEquals(1, service.getAllPersons().size());
-		assertEquals(nameP, service.getAllPersons().get(0).getName());
-		assertEquals(1, service.getAllEvents().size());
-		assertEquals(nameE, service.getAllEvents().get(0).getName());
-		assertEquals(eventDate.toString(), service.getAllEvents().get(0).getDate().toString());
-		assertEquals(startTime.toString(), service.getAllEvents().get(0).getStartTime().toString());
-		assertEquals(endTime.toString(), service.getAllEvents().get(0).getEndTime().toString());
-		assertEquals(1, service.getAllRegistrations().size());
-		// Need to assert by ID (in this case: name)
-		assertEquals(service.getAllEvents().get(0).getName(), service.getAllRegistrations().get(0).getEvent().getName());
-		// Need to assert by ID (in this case: name)
-		assertEquals(service.getAllPersons().get(0).getName(), service.getAllRegistrations().get(0).getPerson().getName());
-	}
 
+		assertEquals(nameP, registration.getPerson().getName());
+		assertEquals(nameE, registration.getEvent().getName());
+		assertEquals(eventDate.toString(), registration.getEvent().getDate().toString());
+		assertEquals(startTime.toString(), registration.getEvent().getStartTime().toString());
+		assertEquals(endTime.toString(), registration.getEvent().getEndTime().toString());
+	}
 
 	@Test
 	public void testCreateEventNull() {
-		assertEquals(0, service.getAllRegistrations().size());
-
 		String name = null;
 		Date eventDate = null;
 		Time startTime = null;
@@ -217,7 +209,7 @@ public class TestEventRegistrationService {
 
 		String error = null;
 		try {
-			service.createEvent(name, eventDate, startTime, endTime);
+			event = service.createEvent(name, eventDate, startTime, endTime);
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
@@ -226,14 +218,10 @@ public class TestEventRegistrationService {
 		assertEquals(
 				"Event name cannot be empty! Event date cannot be empty! Event start time cannot be empty! Event end time cannot be empty!",
 				error);
-		// check model in memory
-		assertEquals(0, service.getAllEvents().size());
 	}
 
 	@Test
 	public void testCreateEventEmpty() {
-		assertEquals(0, service.getAllEvents().size());
-
 		String name = "";
 		Calendar c = Calendar.getInstance();
 		c.set(2017, Calendar.FEBRUARY, 16, 10, 00, 0);
@@ -244,21 +232,17 @@ public class TestEventRegistrationService {
 
 		String error = null;
 		try {
-			service.createEvent(name, eventDate, Time.valueOf(startTime), Time.valueOf(endTime));
+			event = service.createEvent(name, eventDate, Time.valueOf(startTime), Time.valueOf(endTime));
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
 
 		// check error
 		assertEquals("Event name cannot be empty!", error);
-		// check model in memory
-		assertEquals(0, service.getAllEvents().size());
 	}
 
 	@Test
 	public void testCreateEventSpaces() {
-		assertEquals(0, service.getAllEvents().size());
-
 		String name = " ";
 		Calendar c = Calendar.getInstance();
 		c.set(2016, Calendar.OCTOBER, 16, 9, 00, 0);
@@ -269,21 +253,16 @@ public class TestEventRegistrationService {
 
 		String error = null;
 		try {
-			service.createEvent(name, eventDate, Time.valueOf(startTime), Time.valueOf(endTime));
+			event = service.createEvent(name, eventDate, Time.valueOf(startTime), Time.valueOf(endTime));
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
 		// check error
 		assertEquals("Event name cannot be empty!", error);
-		// check model in memory
-		assertEquals(0, service.getAllEvents().size());
-
 	}
 
 	@Test
 	public void testCreateEventEndTimeBeforeStartTime() {
-		assertEquals(0, service.getAllEvents().size());
-
 		String name = "Soccer Game";
 		Calendar c = Calendar.getInstance();
 		c.set(2016, Calendar.OCTOBER, 16, 9, 00, 0);
@@ -294,23 +273,17 @@ public class TestEventRegistrationService {
 
 		String error = null;
 		try {
-			service.createEvent(name, eventDate, Time.valueOf(startTime), Time.valueOf(endTime));
+			event = service.createEvent(name, eventDate, Time.valueOf(startTime), Time.valueOf(endTime));
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
 
 		// check error
 		assertEquals("Event end time cannot be before event start time!", error);
-
-		// check model in memory
-		assertEquals(0, service.getAllEvents().size());
-
 	}
 
 	@Test
 	public void testRegisterNull() {
-		assertEquals(0, service.getAllRegistrations().size());
-
 		Person Person = null;
 		assertEquals(0, service.getAllPersons().size());
 
@@ -319,7 +292,7 @@ public class TestEventRegistrationService {
 
 		String error = null;
 		try {
-			service.register(Person, event);
+			registration = service.register(Person, event);
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
@@ -327,18 +300,10 @@ public class TestEventRegistrationService {
 		// check error
 		assertEquals("Person needs to be selected for registration! Event needs to be selected for registration!",
 				error);
-
-		// check model in memory
-		assertEquals(0, service.getAllRegistrations().size());
-		assertEquals(0, service.getAllPersons().size());
-		assertEquals(0, service.getAllEvents().size());
-
 	}
 
 	@Test
 	public void testRegisterPersonAndEventDoNotExist() {
-		assertEquals(0, service.getAllRegistrations().size());
-
 		String nameP = "Oscar";
 		Person person = new Person();
 		person.setName(nameP);
@@ -360,20 +325,22 @@ public class TestEventRegistrationService {
 
 		String error = null;
 		try {
-			service.register(person, event);
+			registration = service.register(person, event);
 		} catch (IllegalArgumentException e) {
 			error = e.getMessage();
 		}
 
 		// check error
 		assertEquals("Person does not exist! Event does not exist!", error);
-
-		// check model in memory
-		assertEquals(0, service.getAllRegistrations().size());
-		assertEquals(0, service.getAllPersons().size());
-		assertEquals(0, service.getAllEvents().size());
-
 	}
 
+	@Test
+	public void testGetExistingPerson() {
+		assertEquals(PERSON_KEY, service.getPerson(PERSON_KEY).getName());
+	}
 
+	@Test
+	public void testGetNonExistingPerson() {
+		assertNull(service.getPerson(NONEXISTING_KEY));
+	}
 }
