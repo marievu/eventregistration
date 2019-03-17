@@ -1,5 +1,8 @@
 {
   "scripts": {
     "postinstall": "cd EventRegistration-Frontend && npm install"
+  },
+  "dependencies": {
+    "axios": "^0.18.0"
   }
 }
